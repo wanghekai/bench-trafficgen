@@ -243,12 +243,6 @@ def process_options ():
                         default = 5,
                         type = float
                         )
-    parser.add_argument('--negative-packet-loss',
-                        dest='negative_packet_loss_mode',
-                        help='What to do when negative packet loss is encountered',
-                        default = 'quit',
-                        choices = [ 'fail', 'quit', 'retry-to-fail', 'retry-to-quit' ]
-                        )
     parser.add_argument('--search-granularity',
                         dest='search_granularity',
                         help='the binary search will stop once the percent throughput difference between the most recent passing and failing trial is lower than this',
@@ -1783,33 +1777,6 @@ def evaluate_trial(trial_params, trial_stats):
                           trial_stats[dev_pair['rx']]['rx_total_loss_error'],
                           trial_result))
 
-          if 'rx_negative_loss_error' in trial_stats[dev_pair['rx']]:
-               if trial_params['negative_packet_loss_mode'] == 'quit':
-                    trial_result = 'abort'
-                    bs_logger("\t(critical requirement failure, negative individual stream RX packet loss, device pair: %d -> %d, pg_ids: [%s], trial result: %s)" %
-                              (dev_pair['tx'],
-                               dev_pair['rx'],
-                               trial_stats[dev_pair['rx']]['rx_negative_loss_error'],
-                               trial_result))
-
-          if trial_params['loss_granularity'] == 'device' and trial_stats[dev_pair['rx']]['rx_active']:
-               if trial_stats[dev_pair['rx']]['rx_lost_packets_pct'] < 0:
-                    if trial_params['negative_packet_loss_mode'] == 'quit':
-                         trial_result = 'abort'
-                         bs_logger("\t(critical requirement failure, negative device packet loss, device pair: %d -> %d, trial result: %s)" %
-                                   (dev_pair['tx'],
-                                    dev_pair['rx'],
-                                    trial_result))
-
-     if trial_params['loss_granularity'] == 'direction':
-          for direction in trial_stats['directional']:
-               if trial_stats['directional'][direction]['active']:
-                    if trial_stats['directional'][direction]['rx_lost_packets_pct'] < 0:
-                         if trial_params['negative_packet_loss_mode'] == 'quit':
-                              trial_result = 'abort'
-                              bs_logger("\t(critical requirement failure, negative direction packet loss, direction: %s, trial result: %s)" %
-                                        (direction,
-                                         trial_result))
 
      if 'latency_device_pair' in trial_params and trial_params['latency_device_pair'] != '--':
           latency_device_pair = trial_params['latency_device_pair'].split(':')
@@ -1845,24 +1812,6 @@ def evaluate_trial(trial_params, trial_stats):
                               (latency_device_pair[1],
                                latency_device_pair[0],
                                trial_result))
-
-          if trial_params['loss_granularity'] == 'device' and trial_params['negative_packet_loss_mode'] == 'quit':
-               if trial_params['latency_traffic_direction'] == 'bidirectional' or trial_params['latency_traffic_direction'] == 'unidirectional':
-                    if trial_stats['latency']['Forward']['Loss Ratio'] < 0:
-                         trial_result = 'abort'
-                         bs_logger("\t(critical requirement failure, negative device packet loss, forward latency device pair: %d -> %d, trial result: %s)" %
-                                   (latency_device_pair[0],
-                                    latency_device_pair[1],
-                                    trial_result))
-
-               if trial_params['latency_traffic_direction'] == 'bidirectional' or trial_params['latency_traffic_direction'] == 'revunidirectional':
-                    if trial_stats['latency']['Reverse']['Loss Ratio'] < 0:
-                         trial_result = 'abort'
-                         bs_logger("\t(critical requirement failure, negative device packet loss, reverse latency device pair: %d -> %d, trial result: %s)" %
-                                   (latency_device_pair[1],
-                                    latency_device_pair[0],
-                                    trial_result))
-
 
      if trial_result == 'abort':
           if trial_params['trial_mode'] == 'warmup':
@@ -1916,14 +1865,6 @@ def evaluate_trial(trial_params, trial_stats):
                           trial_stats[dev_pair['rx']]['latency_duplicate_error'],
                           trial_result) )
 
-          if 'rx_negative_loss_error' in trial_stats[dev_pair['rx']]:
-               trial_result = trial_params['negative_packet_loss_mode']
-               bs_logger("\t(trial failed requirement, negative individual stream RX packet loss, device pair: %d -> %d, pg_ids: [%s], trial result status: modified, trial result: %s)" %
-                         (dev_pair['tx'],
-                          dev_pair['rx'],
-                          trial_stats[dev_pair['rx']]['rx_negative_loss_error'],
-                          trial_result))
-
           if 'tx_missing_error' in trial_stats[dev_pair['tx']]:
                trial_result = 'fail'
                bs_logger("\t(trial failed requirement, missing TX results, device pair: %d -> %d, pg_ids: [%s], trial result status: modified, trial result: %s)" %
@@ -1951,12 +1892,6 @@ def evaluate_trial(trial_params, trial_stats):
      if trial_params['loss_granularity'] == 'direction':
           for direction in trial_stats['directional']:
                if trial_stats['directional'][direction]['active']:
-                    if trial_stats['directional'][direction]['rx_lost_packets_pct'] < 0:
-                         trial_result = trial_params['negative_packet_loss_mode']
-                         bs_logger("\t(trial failed requirement, negative direction packet loss, direction: %s, trial result status: modified, trial result: %s)" %
-                                   (direction,
-                                    trial_result))
-
                     requirement_msg = "passed"
                     result_msg = "unmodified"
                     if trial_stats['directional'][direction]['rx_lost_packets_pct'] > t_global.args.max_loss_pct:
@@ -2005,13 +1940,6 @@ def evaluate_trial(trial_params, trial_stats):
                                     trial_result))
                elif trial_params['loss_granularity'] == 'device':
                     if trial_stats[dev_pair['rx']]['rx_active']:
-                         if trial_stats[dev_pair['rx']]['rx_lost_packets_pct'] < 0:
-                              trial_result = trial_params['negative_packet_loss_mode']
-                              bs_logger("\t(trial failed requirement, negative device packet loss, device pair: %d -> %d, trial result status: modified, trial result: %s)" %
-                                        (dev_pair['tx'],
-                                         dev_pair['rx'],
-                                         trial_result))
-
                          requirement_msg = "passed"
                          result_msg = "unmodified"
                          if trial_stats[dev_pair['rx']]['rx_lost_packets_pct'] > t_global.args.max_loss_pct:
@@ -2171,7 +2099,6 @@ def main():
     setup_config_var("runtime_tolerance", t_global.args.runtime_tolerance, trial_params)
     setup_config_var("rate_tolerance_failure", t_global.args.rate_tolerance_failure, trial_params)
     setup_config_var("rate_tolerance", t_global.args.rate_tolerance, trial_params)
-    setup_config_var("negative_packet_loss_mode", t_global.args.negative_packet_loss_mode, trial_params)
     setup_config_var("duplicate_packet_failure_mode", t_global.args.duplicate_packet_failure_mode, trial_params)
     setup_config_var("one_shot", t_global.args.one_shot, trial_params)
     setup_config_var("min_rate", t_global.args.min_rate, trial_params)
